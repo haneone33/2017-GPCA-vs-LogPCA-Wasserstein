@@ -1,0 +1,142 @@
+addpath('toolbox')
+
+clear
+close all
+
+%%
+vgrf = readmatrix('vGRF.csv');
+vgrf = vgrf(:,[1:135 ...
+    1833 1835 1834 1427 1426 ...
+    2341 2340 1003 1001 1002 ...
+    632  495  1425 496  497]);
+figure(1)
+plot(vgrf);
+
+%%
+vgrf_sum = sum(vgrf, 1);
+mu = vgrf./vgrf_sum;
+figure(2)
+plot(mu);
+
+mu = mu';
+
+%%
+Omega = 1:200;
+OmegaExt = [0 Omega];
+
+%% Compute smooth barycenter
+
+disp('Smooth Wasserstein barycenter')
+method = 'pchip';
+n_inv = 10000; 
+[Bs, FBs] = wasserstein_barycenter_1D_smooth(mu,Omega,method,n_inv);
+f = [Bs(1) Bs]; % Smooth histogram of the barycenter
+figure(5)
+plot(Omega,Bs)
+title('Smooth barycenter');
+
+%% Compute log maps
+
+disp('Log-maps of the data at the barycenter')
+method = 'pchip';
+V = zeros(size(mu,1),length(Omega)+1);
+for i = 1:size(mu,1)
+    V(i,:) = logMap(mu(i,:),FBs,Omega,method); % log maps of the data at the barycenter
+end
+figure(6)
+plot(OmegaExt,V)
+title('Log-maps of the data at the barycenter')
+%% GPCA - Iterative Geodesic Approach
+ 
+disp('Iterative Geodesic approach')
+
+L = 4;
+% Choose initialization
+rng(1);
+V0 = rand(L,length(Omega)+1); % random initialization
+range_t0 = -0.01:0.01:0.01;
+[v_gpca_iter, t_gpca_iter,t0_iter,residual_iter,W_residual_iter] = algo_GPCA_1D_iter(V,OmegaExt,L,V0,f,range_t0);
+
+
+%%
+% Representation of the 1st, 2nd components and the principal geodesic surface of
+% the iterative geodesic approach
+figure(11)
+map1=autumn(size(mu,1));
+map2=cool(size(mu,1));
+map3=summer(size(mu,1));
+map4=spring(size(mu,1));
+
+% 1st component
+subaxis(1,4,1,'SpacingVert',0.07,'SpacingHoriz',0.07,'ML',0.15);
+h_iter = zeros(size(mu,1),length(OmegaExt));
+[~, I] = sort(t_gpca_iter(:,1));
+for i=1:size(mu,1)
+    T_iter = OmegaExt+t_gpca_iter(I(i),1)*v_gpca_iter(1,:);
+    h_iter(i,:) =pushforward_density(T_iter,f,OmegaExt);
+    plot(OmegaExt,h_iter(i,:),'Color',map1(i,:))
+    axis([Omega(1) Omega(end) -0.001 0.01])
+    hold on
+end
+pl=plot(OmegaExt,f,'-k','linewidth',3);
+legend(pl,'Wasserstein barycenter');
+ylabel('Iterative Geodesic approach','FontSize',10,'FontWeight','bold');
+title('First PG','FontSize',10,'FontWeight','bold');
+
+% 2nd component
+subaxis(1,4,2,'SpacingVert',0.07,'SpacingHoriz',0.07,'ML',0.15);
+[~, I] = sort(t_gpca_iter(:,2));
+for i=1:size(mu,1)
+    T_iter = OmegaExt+t_gpca_iter(I(i),2)*v_gpca_iter(2,:);
+    h_iter(i,:) =pushforward_density(T_iter,f,OmegaExt);
+    plot(OmegaExt,h_iter(i,:),'Color',map2(i,:))
+    axis([Omega(1) Omega(end) -0.001 0.01])
+    hold on
+end
+pl=plot(OmegaExt,f,'-k','linewidth',3);
+legend(pl,'Wasserstein barycenter');
+title('Second PG','FontSize',10,'FontWeight','bold');
+
+% 3rd component
+subaxis(1,4,3,'SpacingVert',0.07,'SpacingHoriz',0.07,'ML',0.15);
+[~, I] = sort(t_gpca_iter(:,3));
+for i=1:size(mu,1)
+    T_iter = OmegaExt+t_gpca_iter(I(i),3)*v_gpca_iter(3,:);
+    h_iter(i,:) =pushforward_density(T_iter,f,OmegaExt);
+    plot(OmegaExt,h_iter(i,:),'Color',map3(i,:))
+    axis([Omega(1) Omega(end) -0.001 0.01])
+    hold on
+end
+pl=plot(OmegaExt,f,'-k','linewidth',3);
+legend(pl,'Wasserstein barycenter');
+title('Third PG','FontSize',10,'FontWeight','bold');
+
+% 4th component
+subaxis(1,4,4,'SpacingVert',0.07,'SpacingHoriz',0.07,'ML',0.15);
+[~, I] = sort(t_gpca_iter(:,4));
+for i=1:size(mu,1)
+    T_iter = OmegaExt+t_gpca_iter(I(i),4)*v_gpca_iter(4,:);
+    h_iter(i,:) =pushforward_density(T_iter,f,OmegaExt);
+    plot(OmegaExt,h_iter(i,:),'Color',map4(i,:))
+    axis([Omega(1) Omega(end) -0.001 0.01])
+    hold on
+end
+pl=plot(OmegaExt,f,'-k','linewidth',3);
+legend(pl,'Wasserstein barycenter');
+title('Fourth PG','FontSize',10,'FontWeight','bold');
+
+%%
+% Principal Surface
+figure(12)
+U=t_gpca_iter*v_gpca_iter;
+for i=1:size(mu,1)
+    T_iter(i,:) = OmegaExt+U(I(i),:);
+    h_iter(i,:) =pushforward_density(T_iter(i,:),f,OmegaExt);
+    plot(OmegaExt,h_iter(i,:),'Color',map3(i,:))
+    axis([Omega(1) Omega(end) -0.001 0.01])
+    hold on
+end
+pl=plot(OmegaExt,f,'-k','linewidth',3);
+legend(pl,'Wasserstein barycenter');
+title('Surface PG','FontSize',10,'FontWeight','bold');
+drawnow;
